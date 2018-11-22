@@ -1,7 +1,2 @@
-def f():
-  a = 1
-  def b():
-    return a
-  return b
-
-print(f()())
+a = {'a': 1}
+print('server %s' % a)

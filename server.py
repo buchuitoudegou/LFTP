@@ -24,7 +24,8 @@ class udpRequestHandler(socketserver.BaseRequestHandler):
       server.establish_conn_1(client_ip, client_port, data, self.request[1])
     elif self.client_address not in server.conn_table:
       server.establish_conn_2(client_ip, client_port, data)
-
+    else:
+      server.send_response((client_ip, client_port), data, self.request[1])
  
 def listen():
   host, port = '127.0.0.1', 8081
