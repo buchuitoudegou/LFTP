@@ -1,7 +1,7 @@
-import queue
+def f():
+  a = 1
+  def b():
+    return a
+  return b
 
-a = queue.Queue()
-a.put(1)
-a.put(2)
-print(a.get())
-print(a.get())
+print(f()())
