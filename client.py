@@ -66,27 +66,28 @@ class Client():
     send_ack()
     
   def send_request(self):
-    data_len = 6
-    # if self.begin:
-    msg = Message.Message('ACK', self.seq, self.ack, 'client', data_len, 0)
-    my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    my_socket.bind((self.ip_addr, self.port))
-    msg = msg.serialize()
-    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-    my_socket.close()
-    self.ack += data_len
-    for i in range(3):
-      my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-      my_socket.bind((self.ip_addr, self.port))
-      data = str(my_socket.recv(self.port))
-      data = restore(data)
-      print('client recieve: %s' % data)
-      if data['ACK'] == self.ack and data['SEQ'] == self.seq:
-        self.seq += data['LEN']
-        msg = Message.Message('ACK', self.seq, self.ack, '', 0)
-        msg = msg.serialize()
-        my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-        my_socket.close()
+    # data_len = 6
+    # # if self.begin:
+    # msg = Message.Message('ACK', self.seq, self.ack, 'client', data_len, 0)
+    # my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    # my_socket.bind((self.ip_addr, self.port))
+    # msg = msg.serialize()
+    # my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+    # my_socket.close()
+    # self.ack += data_len
+    # for i in range(3):
+    #   my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #   my_socket.bind((self.ip_addr, self.port))
+    #   data = str(my_socket.recv(self.port))
+    #   data = restore(data)
+    #   print('client recieve: %s' % data)
+    #   if data['ACK'] == self.ack and data['SEQ'] == self.seq:
+    #     self.seq += data['LEN']
+    #     msg = Message.Message('ACK', self.seq, self.ack, '', 0, 0)
+    #     msg = msg.serialize()
+    #     my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+    #     my_socket.close()
+    
         
 
 if __name__ == '__main__':
