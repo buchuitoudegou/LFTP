@@ -62,6 +62,7 @@ class Server():
       return
     if len(self.conn_table[client_address]['WIN']) != 0:
       idx = 0
+      # acked not pop
       for packet in self.conn_table[client_address]['WIN']:
         if packet['SEQ'] + packet['LEN'] == data['ACK']:
           self.conn_table[client_address]['WIN'].pop(idx)
