@@ -22,6 +22,7 @@ class Client():
     self.seq = -1
     self.ack = -1
     self.begin = True
+    self.win = 10
 
   def establish_conn(self):
     begin_seq = 100
@@ -33,7 +34,7 @@ class Client():
       ACK = -1
       SEQ = begin_seq
       DATA = ''
-      msg = Message.Message(CTL, ACK, SEQ, DATA, 1)
+      msg = Message.Message(CTL, ACK, SEQ, DATA, 1, self.win)
       msg = msg.serialize()
       my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
       my_socket.close()
@@ -67,7 +68,7 @@ class Client():
   def send_request(self):
     data_len = 6
     # if self.begin:
-    msg = Message.Message('ACK', self.seq, self.ack, 'client', data_len)
+    msg = Message.Message('ACK', self.seq, self.ack, 'client', data_len, 0)
     my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     my_socket.bind((self.ip_addr, self.port))
     msg = msg.serialize()
