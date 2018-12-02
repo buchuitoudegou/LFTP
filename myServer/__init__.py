@@ -18,21 +18,20 @@ class Server():
         CTL = 'SYN+ACK'
         SEQ = self.begin_seq
         ACK = data['SEQ'] + 1
-        DATA = ''
-        msg = Message.Message(CTL, ACK, SEQ, DATA, 1)
+        DATA = ' '
+        msg = Message.Message(CTL, ACK, SEQ, DATA, 1, 0)
         msg = msg.serialize()
         my_socket.sendto(msg.encode('utf8'), (client_ip, client_port))
-        self.connecting.add({(client_ip, client_port): data['WIN']})
+        #self.connecting.add({(client_ip, client_port): data['WIN']})
+        self.connecting[(client_ip, client_port)] = data['WIN']
     send_syn()
     print(self.connecting)
     print(self.conn_table)
 
   def establish_conn_2(self, client_ip, client_port, data):
     check_seq = self.begin_seq + 1
-    # print(data)
+    print(data)
     if data['CTL'] == 'ACK' and data['ACK'] == check_seq:
-      
-      # self.conn_table.add((client_ip, client_port), check_seq)
       self.conn_table[(client_ip, client_port)] = {'SEQ': data['ACK'], \
       'ACK': data['SEQ'],\
        'WIN_SIZE': self.connecting[(client_ip, client_port)], \
@@ -62,11 +61,20 @@ class Server():
       return
     if len(self.conn_table[client_address]['WIN']) != 0:
       idx = 0
-      # acked not pop
+      # marked not pop
       for packet in self.conn_table[client_address]['WIN']:
-        if packet['SEQ'] + packet['LEN'] == data['ACK']:
-          self.conn_table[client_address]['WIN'].pop(idx)
+        if packet.SEQ + packet.LEN == data['ACK']:
+          self.conn_table[client_address]['WIN'][idx].marked = True
         idx += 1
+      
+      delete = -1
+      for packet in self.conn_table[client_address]['WIN']:
+        if packet.marked == True:
+          delete += 1
+          self.conn_table[client_address]['WIN'].pop(delete)
+        else:
+          break
+    print(data) 
     while not self.win_empty(client_address):
       if self.conn_table[client_address]['IDX'] == len(self.send_data):
         break
@@ -77,6 +85,7 @@ class Server():
       self.send_data[begin:begin+self.size], self.size, 0)
       self.conn_table[client_address]['WIN'].append(msg)
       msg = msg.serialize()
+      print('send-data: %d' % self.conn_table[client_address]['IDX'])
       self.conn_table[client_address]['IDX'] += self.size
       self.conn_table[client_address]['SEQ'] += self.size
       my_socket.sendto(msg.encode('utf8'), client_address)

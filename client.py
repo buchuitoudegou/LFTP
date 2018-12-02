@@ -33,7 +33,7 @@ class Client():
       CTL = 'SYN'
       ACK = -1
       SEQ = begin_seq
-      DATA = ''
+      DATA = 'filename'
       msg = Message.Message(CTL, ACK, SEQ, DATA, 1, self.win)
       msg = msg.serialize()
       my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
@@ -54,12 +54,13 @@ class Client():
       msg = self.msg_queue.get()
       msg = restore(msg)
       if msg['CTL'] == 'SYN+ACK' and msg['ACK'] == begin_seq + 1:
-        ack = Message.Message('ACK', msg['SEQ'] + 1, begin_seq + 1, '', 1)
+        ack = Message.Message('ACK', msg['SEQ'] + 1, begin_seq + 1, ' ', 1, 0)
         ack = ack.serialize()
-        self.ack = begin_seq + 1
-        self.seq = msg['SEQ'] + 1
+        self.seq = begin_seq + 1
+        self.ack = msg['SEQ'] + 1
         my_socket.sendto(ack.encode('utf8'), (self.des_ip, self.des_port))
         my_socket.close()
+        print('finish connecting')
 
     send_syn()
     wait_for_msg()
@@ -87,7 +88,31 @@ class Client():
     #     msg = msg.serialize()
     #     my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
     #     my_socket.close()
-    
+    msg = Message.Message('ACK', self.ack, self.seq, '', 0, 0)
+    my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    my_socket.bind((self.ip_addr, self.port))
+    msg = msg.serialize()
+    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+    my_socket.close()
+    while True:
+      my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+      my_socket.bind((self.ip_addr, self.port))
+      data = str(my_socket.recv(self.port))
+      data = restore(data)
+      if data['CTL'] == 'FIN':
+        print('transport complete')
+        break
+      time.sleep(1)
+      print(data)
+      if data['ACK'] == self.seq and data['SEQ'] == self.ack:
+        self.ack = self.ack + data['LEN']
+        msg = Message.Message('ACK', self.ack, self.seq, '', 0, 0)
+        msg = msg.serialize()
+        my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+        my_socket.close()
+      else:
+        my_socket.close()
+      
         
 
 if __name__ == '__main__':

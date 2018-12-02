@@ -20,10 +20,13 @@ class udpRequestHandler(socketserver.BaseRequestHandler):
     data = restore(data)
     client_ip = self.client_address[0]
     client_port = self.client_address[1]
+    print()
     if self.client_address not in server.conn_table and self.client_address not in server.connecting:
       server.establish_conn_1(client_ip, client_port, data, self.request[1])
     elif self.client_address not in server.conn_table:
       server.establish_conn_2(client_ip, client_port, data)
+    else:
+      server.handler(self.client_address, data, self.request[1])
     
       
  
