@@ -17,7 +17,8 @@ import socket
 #   server.serve_forever()
 # listen()
 
-my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-my_socket.bind(('127.0.0.1', 8088))
-my_socket.sendto('h1'.encode('utf8'), ('127.0.0.1', 7777))
-my_socket.sendto('h2'.encode('utf8'), ('127.0.0.1', 7777))
+# my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+# my_socket.bind(('127.0.0.1', 8088))
+# my_socket.sendto('h1'.encode('utf8'), ('127.0.0.1', 7777))
+# my_socket.sendto('h2'.encode('utf8'), ('127.0.0.1', 7777))
+

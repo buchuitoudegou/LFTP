@@ -14,7 +14,7 @@ class Server():
     self.closing = dict()
     self.file_manage = FileManage.FileManage()
     self.begin_seq = 200
-    self.size = 4
+    self.size = 1000
     self.throw = 0
   
   def establish_conn_1(self, client_ip, client_port, data, my_socket):
@@ -27,6 +27,7 @@ class Server():
         DATA = ' '
         msg = Message.Message(CTL, ACK, SEQ, DATA, 1, 0)
         msg = msg.serialize()
+        #   
         my_socket.sendto(msg.encode('utf8'), (client_ip, client_port))
         self.connecting[(client_ip, client_port)] = data['WIN']
     send_syn()
@@ -36,7 +37,7 @@ class Server():
   def establish_conn_2(self, client_ip, client_port, data, my_socket):
     check_seq = self.begin_seq + 1
     print(data)
-    timer = Timer(10, self.resend, args=((client_ip, client_port), my_socket, ))
+    timer = Timer(2, self.resend, args=((client_ip, client_port), my_socket, ))
     lock = threading.Lock()
     congestion = Congestion.Congestion()
     if data['CTL'] == 'ACK' and data['ACK'] == check_seq:
@@ -57,12 +58,14 @@ class Server():
 
   def resend(self, client_address, my_socket):
     print('resend:')
+    if not client_address in self.conn_table:
+      return
     for packet in self.conn_table[client_address]['WIN']:
       msg = packet.serialize()
       print(msg)
       my_socket.sendto(msg.encode('utf8'), client_address)
     print('resend complete')
-    self.conn_table[client_address]['TIMEOUT'] = Timer(10, self.resend, args=(client_address, my_socket, ))
+    self.conn_table[client_address]['TIMEOUT'] = Timer(2, self.resend, args=(client_address, my_socket, ))
     self.conn_table[client_address]['TIMEOUT'].start()
 
   def handler(self, client_address, data, my_socket):
@@ -81,7 +84,7 @@ class Server():
           congestion_flag = True
           self.conn_table[client_address]['WIN'][idx].marked = True
           self.conn_table[client_address]['TIMEOUT'].cancel()
-          self.conn_table[client_address]['TIMEOUT'] = Timer(10, self.resend, args=(client_address, my_socket, ))
+          self.conn_table[client_address]['TIMEOUT'] = Timer(2, self.resend, args=(client_address, my_socket, ))
           self.conn_table[client_address]['TIMEOUT'].start()
         idx += 1
       if not congestion_flag:

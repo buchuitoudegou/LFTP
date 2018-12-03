@@ -8,7 +8,11 @@ class FileManage():
     if client_address in self.source_table:
       self.source_table[client_address]['IDX'] += size
     else:
-      data = open(self.path + filename)
+      data = None
+      if filename.split('.')[1] == 'txt':
+        data = open(self.path + filename, 'r')
+      else:
+        data = open(self.path + filename, 'rb')
       self.source_table[client_address] = {\
         'IDX': 0,\
         'fd': data\

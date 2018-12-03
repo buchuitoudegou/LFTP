@@ -5,10 +5,10 @@ import Message
 import queue
 from Message import restore
 from threading import Timer
-
+import random
 
 class Client():
-  def __init__(self, port, ip_addr, des_ip, des_port):
+  def __init__(self, port, ip_addr, des_ip, des_port, src_path):
     """
       init a client socket params
       :params port: port of the socket
@@ -24,8 +24,10 @@ class Client():
     self.seq = -1
     self.ack = -1
     self.begin = True
-    self.win = 10
+    self.win_size = 30000
+    self.last_packet = []
     self.timer = None
+    self.src_path = src_path
 
   def establish_conn(self):
     """
@@ -44,26 +46,29 @@ class Client():
       ACK = -1
       SEQ = begin_seq
       DATA = 'data.txt'
-      msg = Message.Message(CTL, ACK, SEQ, DATA, 1, self.win)
+      msg = Message.Message(CTL, ACK, SEQ, DATA, 1, self.win_size)
       msg = msg.serialize()
+      # print(msg)
+      # print(restore(msg))
       my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
       my_socket.close()
 
     def wait_for_msg():
       """
-      description: receive SYN and ACK from server
+        description: receive SYN and ACK from server
       """
       my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
       my_socket.bind((self.ip_addr, self.port))
-      print(self.port)
-      recv = str(my_socket.recv(self.port))
+      #print(self.port)
+      recv = my_socket.recv(self.port)
+      recv = recv.decode('utf8')
       print(recv)
       self.msg_queue.put(recv)
       my_socket.close()
 
     def send_ack():
       """
-      description: send ACK to server
+        description: send ACK to server
       """
       my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
       my_socket.bind((self.ip_addr, self.port))
@@ -84,26 +89,26 @@ class Client():
     
   def send_request(self):
     """
-    description: send request and gain resource
-    return: None
+      description: send request and gain resource
+      return: None
     """
     # analog packet loss
-    throw = 0
-    last_packet = []
     self.timer = None
     # first request
     msg = Message.Message('ACK', self.ack, self.seq, '', 0, 0)
-    last_packet.append(msg)
+    self.last_packet.append(msg)
     my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     my_socket.bind((self.ip_addr, self.port))
     msg = msg.serialize()
     my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-    self.timer = Timer(10, self.resend, args=(my_socket, last_packet, ))
+    self.timer = Timer(2, self.resend, args=(my_socket, ))
     self.timer.start()
+    fd = open(self.src_path, 'a')
     # recieve packet from server
     while True:
       # ananlize packet
-      data = str(my_socket.recv(self.port))
+      data = my_socket.recv(self.port).decode('utf8')
+      print(data)
       data = restore(data)
       idx = 0
       # if transport complete
@@ -111,39 +116,47 @@ class Client():
         self.timer.cancel()
         print('transport complete')
         break
-      # analog handle
-      time.sleep(1)
       # analog packet loss
-      if data['SEQ'] == 209 and throw == 0:
-        throw += 1
+      if random.random() > 0.9:
         print('throw', data)
         continue
+      idx = 0
+      for packet in self.last_packet:
+        if packet.ACK == data['SEQ'] + data['LEN']:
+          print('resend', packet)
+          my_socket.sendto(packet.serialize().encode('utf8'), (self.des_ip, self.des_port))
+      # whether correct
       if data['ACK'] == self.seq and data['SEQ'] == self.ack:
         print(data)
+        # save to the file
+        fd.write(data['DATA'])
         self.timer.cancel()
         self.ack = self.ack + data['LEN']
-        msg = Message.Message('ACK', self.ack, self.seq, '', 0, 0)
-        last_packet.append(msg)
+        msg = Message.Message('ACK', self.ack, self.seq, '', data['LEN'], 0)
+        self.last_packet.append(msg)
         msg = msg.serialize()
         my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-        self.timer = Timer(10, self.resend, args=(my_socket, last_packet, ))
-        self.timer.start()
+        #self.timer = Timer(2, self.resend, args=(my_socket, ))
+        #self.timer.start()
       else:
         pass
+    fd.close()
     my_socket.close()
       
-  def resend(self, my_socket, last_packet):
-    for packet in last_packet:
+  def resend(self, my_socket):
+    for i in range(len(self.last_packet) - 1, -1, -1):
+      packet = self.last_packet[i]
       print('resend', packet.serialize())
       try:
         my_socket.sendto(packet.serialize().encode('utf8'), (self.des_ip, self.des_port))
       except:
         pass
-    self.timer = Timer(10, self.resend, args=(my_socket, last_packet, ))
+    # self.last_packet = []
+    self.timer = Timer(2, self.resend, args=(my_socket, ))
     self.timer.start()
 
 def multi_thread(port):
-  client = Client(port, '127.0.0.1', '127.0.0.1', 8081)
+  client = Client(port, '127.0.0.1', '127.0.0.1', 8081, 'rev.txt')
   client.establish_conn()
   client.send_request()  
 

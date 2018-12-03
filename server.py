@@ -13,8 +13,9 @@ class udpRequestHandler(socketserver.BaseRequestHandler):
     super().__init__(request, client_address, server)
     
   def handle(self):
-    data = str(self.request[0].strip())
+    data = self.request[0].strip().decode('utf8')
     data = restore(data)
+    # print(data)
     client_ip = self.client_address[0]
     client_port = self.client_address[1]
     print()
@@ -27,7 +28,7 @@ class udpRequestHandler(socketserver.BaseRequestHandler):
       t.start()
     else:
       # server.handler(self.client_address, data, self.request[1])
-      if random.random() > 0.4:
+      if random.random() > 0.9:
         print('throw', data)
         server.throw += 1
       else:  
