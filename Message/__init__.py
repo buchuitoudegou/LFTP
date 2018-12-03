@@ -9,12 +9,20 @@ class Message():
     self.marked = False
 
   def serialize(self):
-    string = self.CTL + '|' + str(self.ACK) + '|' + str(self.SEQ) + '|' \
-    + self.DATA + '|' + str(self.LEN) + '|' + str(self.WIN)
+    string = self.CTL + '|' \
+      + str(self.ACK) + '|' \
+      + str(self.SEQ) + '|' \
+      + str(self.DATA) + '|' \
+      + str(self.LEN) + '|' \
+      + str(self.WIN)
     return string
 
 def restore(string):
   arr = string.split('|')
-  return { 'CTL': str(arr[0])[2:], 'ACK': int(arr[1]), \
-  'SEQ': int(arr[2]), 'DATA': str(arr[3]), 'LEN': int(arr[4]),\
-  'WIN': int(arr[5][:len(arr[5])-1])}
+  return { \
+    'CTL': str(arr[0])[2:], 'ACK': int(arr[1]), \
+    'SEQ': int(arr[2]),\
+    'DATA': str(arr[3]),\
+    'LEN': int(arr[4]),\
+    'WIN': int(arr[5][:len(arr[5])-1])
+  }

@@ -11,6 +11,7 @@ class Server():
     self.begin_seq = 200
     self.send_data = 'aaaabbbbccccddddeeee'
     self.size = 4
+    self.throw = 0
   
   def establish_conn_1(self, client_ip, client_port, data, my_socket):
     # print(data)
@@ -23,7 +24,6 @@ class Server():
         msg = Message.Message(CTL, ACK, SEQ, DATA, 1, 0)
         msg = msg.serialize()
         my_socket.sendto(msg.encode('utf8'), (client_ip, client_port))
-        #self.connecting.add({(client_ip, client_port): data['WIN']})
         self.connecting[(client_ip, client_port)] = data['WIN']
     send_syn()
     print(self.connecting)
@@ -81,7 +81,6 @@ class Server():
     while self.win_empty(client_address):
       if self.conn_table[client_address]['IDX'] == len(self.send_data):
         break
-      #print(777777777)
       begin = self.conn_table[client_address]['IDX']
       newSeq = self.conn_table[client_address]['SEQ']
       newAck = self.conn_table[client_address]['ACK']
@@ -113,9 +112,7 @@ class Server():
     total = 0
     for packet in win:
       total += packet.LEN
-    #print(total)
     if total < self.conn_table[client_address]['WIN_SIZE']:
-      #print(total, True)
       return True
     else:
       return False
@@ -127,4 +124,5 @@ class Server():
     msg = Message.Message('FIN', newAck, newSeq, '', 0, 0)
     msg = msg.serialize()
     my_socket.sendto(msg.encode('utf8'), client_address)
+    self.conn_table[client_address]['TIMEOUT'].cancel()
     self.conn_table.pop(client_address)

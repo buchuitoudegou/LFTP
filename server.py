@@ -4,6 +4,7 @@ import sys
 import queue
 import myServer
 from Message import restore
+import random
 
 server = myServer.Server('127.0.0.1', 8081)
 
@@ -12,10 +13,6 @@ class udpRequestHandler(socketserver.BaseRequestHandler):
     super().__init__(request, client_address, server)
     
   def handle(self):
-    # data = self.request[0].strip()
-    # socket = self.request[1]
-    # print('[Recieve from %s:%s] %s' % (self.client_address[0], self.client_address[1], data))
-    # socket.sendto('next seq'.encode('gbk'), self.client_address)
     data = str(self.request[0].strip())
     data = restore(data)
     client_ip = self.client_address[0]
@@ -30,8 +27,12 @@ class udpRequestHandler(socketserver.BaseRequestHandler):
       t.start()
     else:
       # server.handler(self.client_address, data, self.request[1])
-      t = threading.Thread(target=server.handler, args=(self.client_address, data, self.request[1]))
-      t.start()
+      if server.throw == 0 and random.random() > 0.5:
+        print('throw', data)
+        server.throw += 1
+      else:  
+        t = threading.Thread(target=server.handler, args=(self.client_address, data, self.request[1]))
+        t.start()
     
       
  

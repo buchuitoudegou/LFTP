@@ -4,6 +4,8 @@ import time
 import Message
 import queue
 from Message import restore
+from threading import Timer
+
 
 class Client():
   def __init__(self, port, ip_addr, des_ip, des_port):
@@ -25,9 +27,16 @@ class Client():
     self.win = 10
 
   def establish_conn(self):
+    """
+    description: establish connection with server
+    return: None
+    """
+    # initial seq of client request
     begin_seq = 100
-
     def send_syn():
+      """
+      description:send SYN to server
+      """
       my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
       my_socket.bind((self.ip_addr, self.port))
       CTL = 'SYN'
@@ -40,6 +49,9 @@ class Client():
       my_socket.close()
 
     def wait_for_msg():
+      """
+      description: receive SYN and ACK from server
+      """
       my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
       my_socket.bind((self.ip_addr, self.port))
       print(self.port)
@@ -49,6 +61,9 @@ class Client():
       my_socket.close()
 
     def send_ack():
+      """
+      description: send ACK to server
+      """
       my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
       my_socket.bind((self.ip_addr, self.port))
       msg = self.msg_queue.get()
@@ -67,57 +82,61 @@ class Client():
     send_ack()
     
   def send_request(self):
-    # data_len = 6
-    # # if self.begin:
-    # msg = Message.Message('ACK', self.seq, self.ack, 'client', data_len, 0)
-    # my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    # my_socket.bind((self.ip_addr, self.port))
-    # msg = msg.serialize()
-    # my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-    # my_socket.close()
-    # self.ack += data_len
-    # for i in range(3):
-    #   my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    #   my_socket.bind((self.ip_addr, self.port))
-    #   data = str(my_socket.recv(self.port))
-    #   data = restore(data)
-    #   print('client recieve: %s' % data)
-    #   if data['ACK'] == self.ack and data['SEQ'] == self.seq:
-    #     self.seq += data['LEN']
-    #     msg = Message.Message('ACK', self.seq, self.ack, '', 0, 0)
-    #     msg = msg.serialize()
-    #     my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-    #     my_socket.close()
+    """
+    description: send request and gain resource
+    return: None
+    """
+    # analog packet loss
     throw = 0
+    last_packet = None
+    timer = None
+    # first request
     msg = Message.Message('ACK', self.ack, self.seq, '', 0, 0)
+    last_packet = msg
     my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     my_socket.bind((self.ip_addr, self.port))
     msg = msg.serialize()
     my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-    # my_socket.close()
+    timer = Timer(10, self.resend, args=(my_socket, last_packet, ))
+    timer.start()
+    # recieve packet from server
     while True:
+      # ananlize packet
       data = str(my_socket.recv(self.port))
       data = restore(data)
+      # if transport complete
       if data['CTL'] == 'FIN':
+        timer.cancel()
         print('transport complete')
         break
+      # analog handle
       time.sleep(1)
+      # analog packet loss
       if data['SEQ'] == 209 and throw == 0:
         throw += 1
         print('throw', data)
         continue
       if data['ACK'] == self.seq and data['SEQ'] == self.ack:
         print(data)
+        timer.cancel()
         self.ack = self.ack + data['LEN']
         msg = Message.Message('ACK', self.ack, self.seq, '', 0, 0)
+        last_packet = msg
         msg = msg.serialize()
         my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-        # my_socket.close()
+        timer = Timer(10, self.resend, args=(my_socket, last_packet, ))
+        timer.start()
       else:
-        # my_socket.close()
         pass
     my_socket.close()
       
+  def resend(self, my_socket, packet):
+    print('resend', packet)
+    try:
+      my_socket.sendto(packet.serialize().encode('utf8'), (self.des_ip, self.des_port))
+    except:
+      pass
+
 def multi_thread(port):
   client = Client(port, '127.0.0.1', '127.0.0.1', 8081)
   client.establish_conn()
