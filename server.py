@@ -22,11 +22,16 @@ class udpRequestHandler(socketserver.BaseRequestHandler):
     client_port = self.client_address[1]
     print()
     if self.client_address not in server.conn_table and self.client_address not in server.connecting:
-      server.establish_conn_1(client_ip, client_port, data, self.request[1])
+      t = threading.Thread(target=server.establish_conn_1, args=(client_ip, client_port, data, self.request[1],))
+      t.start()
     elif self.client_address not in server.conn_table:
-      server.establish_conn_2(client_ip, client_port, data)
+      # server.establish_conn_2(client_ip, client_port, data)
+      t = threading.Thread(target=server.establish_conn_2, args=(client_ip, client_port, data, self.request[1], ))
+      t.start()
     else:
-      server.handler(self.client_address, data, self.request[1])
+      # server.handler(self.client_address, data, self.request[1])
+      t = threading.Thread(target=server.handler, args=(self.client_address, data, self.request[1]))
+      t.start()
     
       
  

@@ -88,39 +88,44 @@ class Client():
     #     msg = msg.serialize()
     #     my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
     #     my_socket.close()
+    throw = 0
     msg = Message.Message('ACK', self.ack, self.seq, '', 0, 0)
     my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     my_socket.bind((self.ip_addr, self.port))
     msg = msg.serialize()
     my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-    my_socket.close()
+    # my_socket.close()
     while True:
-      my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-      my_socket.bind((self.ip_addr, self.port))
       data = str(my_socket.recv(self.port))
       data = restore(data)
       if data['CTL'] == 'FIN':
         print('transport complete')
         break
       time.sleep(1)
-      print(data)
+      if data['SEQ'] == 209 and throw == 0:
+        throw += 1
+        print('throw', data)
+        continue
       if data['ACK'] == self.seq and data['SEQ'] == self.ack:
+        print(data)
         self.ack = self.ack + data['LEN']
         msg = Message.Message('ACK', self.ack, self.seq, '', 0, 0)
         msg = msg.serialize()
         my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-        my_socket.close()
+        # my_socket.close()
       else:
-        my_socket.close()
+        # my_socket.close()
+        pass
+    my_socket.close()
       
-        
+def multi_thread(port):
+  client = Client(port, '127.0.0.1', '127.0.0.1', 8081)
+  client.establish_conn()
+  client.send_request()  
 
 if __name__ == '__main__':
-  client = Client(7777, '127.0.0.1', '127.0.0.1', 8081)
-  client.establish_conn()
-  client.send_request()
-# if __name__ == '__main__':
-#   my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-#   my_socket.bind(('127.0.0.1', 7707))
-#   send_msg(my_socket)
-#   my_socket.close()
+  t1 = threading.Thread(target=multi_thread, args=(7777, ))
+  #t2 = threading.Thread(target=multi_thread, args=(7700, ))
+  t1.start()
+  #time.sleep(2)
+  #t2.start()

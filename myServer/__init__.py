@@ -1,4 +1,5 @@
 import Message
+from threading import Timer
 
 class Server():
   def __init__(self, ip, port):
@@ -28,34 +29,34 @@ class Server():
     print(self.connecting)
     print(self.conn_table)
 
-  def establish_conn_2(self, client_ip, client_port, data):
+  def establish_conn_2(self, client_ip, client_port, data, my_socket):
     check_seq = self.begin_seq + 1
     print(data)
+    timer = Timer(10, self.resend, args=((client_ip, client_port), my_socket, ))
     if data['CTL'] == 'ACK' and data['ACK'] == check_seq:
-      self.conn_table[(client_ip, client_port)] = {'SEQ': data['ACK'], \
-      'ACK': data['SEQ'],\
-       'WIN_SIZE': self.connecting[(client_ip, client_port)], \
-       'IDX': 0,\
-       'WIN': []} 
+      self.conn_table[(client_ip, client_port)] = {\
+        'SEQ': data['ACK'], \
+        'ACK': data['SEQ'],\
+        'WIN_SIZE': self.connecting[(client_ip, client_port)], \
+        'IDX': 0,\
+        'WIN': [],\
+        'TIMEOUT': timer\
+      }
+      timer.start()
       self.connecting.pop((client_ip, client_port))
     print(self.connecting)
     print(self.conn_table)
 
-  # def send_response(self, client_address, data, my_socket):
-  #   if client_address not in self.conn_table:
-  #     return
-  #   last_status = self.conn_table[client_address]
-  #   print('server recieve: %s' % (data))
-  #   new_message_len = 5
-  #   if last_status['SEQ'] == data['SEQ'] and last_status['ACK'] == data['ACK']:
-  #     self.conn_table[client_address]['SEQ'] += data['LEN']
-  #     msg = Message.Message('ACK', self.conn_table[client_address]['SEQ'], last_status['ACK'], 'Hello', new_message_len)
-  #     msg = msg.serialize()
-  #     self.conn_table[client_address]['ACK'] += new_message_len
-  #     my_socket.sendto(msg.encode('utf8'), client_address)
-   
-  
-  # def close_conn(self):
+  def resend(self, client_address, my_socket):
+    print('resend:')
+    for packet in self.conn_table[client_address]['WIN']:
+      msg = packet.serialize()
+      print(msg)
+      my_socket.sendto(msg.encode('utf8'), client_address)
+    print('resend complete')
+    self.conn_table[client_address]['TIMEOUT'] = Timer(10, self.resend, args=(client_address, my_socket, ))
+    self.conn_table[client_address]['TIMEOUT'].start()
+
   def handler(self, client_address, data, my_socket):
     if not client_address in self.conn_table:
       return
@@ -65,8 +66,10 @@ class Server():
       for packet in self.conn_table[client_address]['WIN']:
         if packet.SEQ + packet.LEN == data['ACK']:
           self.conn_table[client_address]['WIN'][idx].marked = True
+          self.conn_table[client_address]['TIMEOUT'].cancel()
+          self.conn_table[client_address]['TIMEOUT'] = Timer(10, self.resend, args=(client_address, my_socket, ))
+          self.conn_table[client_address]['TIMEOUT'].start()
         idx += 1
-      
       delete = -1
       for packet in self.conn_table[client_address]['WIN']:
         if packet.marked == True:
@@ -75,15 +78,17 @@ class Server():
         else:
           break
     print(data) 
-    while not self.win_empty(client_address):
+    while self.win_empty(client_address):
       if self.conn_table[client_address]['IDX'] == len(self.send_data):
         break
+      #print(777777777)
       begin = self.conn_table[client_address]['IDX']
       newSeq = self.conn_table[client_address]['SEQ']
       newAck = self.conn_table[client_address]['ACK']
       msg = Message.Message('ACK', newAck, newSeq, \
       self.send_data[begin:begin+self.size], self.size, 0)
       self.conn_table[client_address]['WIN'].append(msg)
+      print(msg.serialize())
       msg = msg.serialize()
       print('send-data: %d' % self.conn_table[client_address]['IDX'])
       self.conn_table[client_address]['IDX'] += self.size
@@ -91,15 +96,26 @@ class Server():
       my_socket.sendto(msg.encode('utf8'), client_address)
 
     if self.conn_table[client_address]['IDX'] == len(self.send_data):
-      self.close_conn(client_address)
-    
+      flag = True
+      for packet in self.conn_table[client_address]['WIN']:
+        if packet.marked == False:
+          flag = False
+          break
+      if flag:
+        self.close_conn(client_address, my_socket)
+    if client_address in self.conn_table:
+      print(self.conn_table[client_address])
+    else:
+      print(self.conn_table)
 
   def win_empty(self, client_address):
     win = self.conn_table[client_address]['WIN']
     total = 0
     for packet in win:
-      total += packet['LEN']
+      total += packet.LEN
+    #print(total)
     if total < self.conn_table[client_address]['WIN_SIZE']:
+      #print(total, True)
       return True
     else:
       return False
@@ -111,3 +127,4 @@ class Server():
     msg = Message.Message('FIN', newAck, newSeq, '', 0, 0)
     msg = msg.serialize()
     my_socket.sendto(msg.encode('utf8'), client_address)
+    self.conn_table.pop(client_address)
