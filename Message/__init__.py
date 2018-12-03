@@ -14,7 +14,8 @@ class Message():
       + str(self.SEQ) + '|' \
       + str(self.DATA) + '|' \
       + str(self.LEN) + '|' \
-      + str(self.WIN)
+      + str(self.WIN) + '|'\
+      + str(self.marked)
     return string
 
 def restore(string):
@@ -24,5 +25,6 @@ def restore(string):
     'SEQ': int(arr[2]),\
     'DATA': str(arr[3]),\
     'LEN': int(arr[4]),\
-    'WIN': int(arr[5][:len(arr[5])-1])
+    'WIN': int(arr[5]),\
+    'marked': False if arr[6][:len(arr[6])-1] == 'False' else True
   }

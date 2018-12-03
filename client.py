@@ -25,6 +25,7 @@ class Client():
     self.ack = -1
     self.begin = True
     self.win = 10
+    self.timer = None
 
   def establish_conn(self):
     """
@@ -88,17 +89,17 @@ class Client():
     """
     # analog packet loss
     throw = 0
-    last_packet = None
-    timer = None
+    last_packet = []
+    self.timer = None
     # first request
     msg = Message.Message('ACK', self.ack, self.seq, '', 0, 0)
-    last_packet = msg
+    last_packet.append(msg)
     my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     my_socket.bind((self.ip_addr, self.port))
     msg = msg.serialize()
     my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-    timer = Timer(10, self.resend, args=(my_socket, last_packet, ))
-    timer.start()
+    self.timer = Timer(10, self.resend, args=(my_socket, last_packet, ))
+    self.timer.start()
     # recieve packet from server
     while True:
       # ananlize packet
@@ -106,7 +107,7 @@ class Client():
       data = restore(data)
       # if transport complete
       if data['CTL'] == 'FIN':
-        timer.cancel()
+        self.timer.cancel()
         print('transport complete')
         break
       # analog handle
@@ -118,24 +119,27 @@ class Client():
         continue
       if data['ACK'] == self.seq and data['SEQ'] == self.ack:
         print(data)
-        timer.cancel()
+        self.timer.cancel()
         self.ack = self.ack + data['LEN']
         msg = Message.Message('ACK', self.ack, self.seq, '', 0, 0)
-        last_packet = msg
+        last_packet.append(msg)
         msg = msg.serialize()
         my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-        timer = Timer(10, self.resend, args=(my_socket, last_packet, ))
-        timer.start()
+        self.timer = Timer(10, self.resend, args=(my_socket, last_packet, ))
+        self.timer.start()
       else:
         pass
     my_socket.close()
       
-  def resend(self, my_socket, packet):
-    print('resend', packet)
-    try:
-      my_socket.sendto(packet.serialize().encode('utf8'), (self.des_ip, self.des_port))
-    except:
-      pass
+  def resend(self, my_socket, last_packet):
+    for packet in last_packet:
+      print('resend', packet.serialize())
+      try:
+        my_socket.sendto(packet.serialize().encode('utf8'), (self.des_ip, self.des_port))
+      except:
+        pass
+    self.timer = Timer(10, self.resend, args=(my_socket, last_packet, ))
+    self.timer.start()
 
 def multi_thread(port):
   client = Client(port, '127.0.0.1', '127.0.0.1', 8081)
