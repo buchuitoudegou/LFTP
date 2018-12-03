@@ -10,11 +10,11 @@ from threading import Timer
 class Client():
   def __init__(self, port, ip_addr, des_ip, des_port):
     """
-    init a client socket params
-    :params port: port of the socket
-    :type port: Integer
-    :params ip_addr: ip address of socket
-    :type ip_addr: string
+      init a client socket params
+      :params port: port of the socket
+      :type port: Integer
+      :params ip_addr: ip address of socket
+      :type ip_addr: string
     """
     self.port = port
     self.ip_addr = ip_addr
@@ -105,6 +105,7 @@ class Client():
       # ananlize packet
       data = str(my_socket.recv(self.port))
       data = restore(data)
+      idx = 0
       # if transport complete
       if data['CTL'] == 'FIN':
         self.timer.cancel()

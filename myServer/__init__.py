@@ -2,6 +2,8 @@ import Message
 from threading import Timer
 import FileManage
 import threading
+import Congestion
+import time
 
 class Server():
   def __init__(self, ip, port):
@@ -36,6 +38,7 @@ class Server():
     print(data)
     timer = Timer(10, self.resend, args=((client_ip, client_port), my_socket, ))
     lock = threading.Lock()
+    congestion = Congestion.Congestion()
     if data['CTL'] == 'ACK' and data['ACK'] == check_seq:
       self.conn_table[(client_ip, client_port)] = {\
         'SEQ': data['ACK'], \
@@ -44,7 +47,8 @@ class Server():
         'IDX': 0,\
         'WIN': [],\
         'TIMEOUT': timer,\
-        'LOCK': lock\
+        'LOCK': lock,\
+        'CGT': congestion
       }
       timer.start()
       self.connecting.pop((client_ip, client_port))
@@ -69,14 +73,19 @@ class Server():
     print('lock acquire')
     if len(self.conn_table[client_address]['WIN']) != 0:
       idx = 0
+      congestion_flag = False
       # marked not pop
       for packet in self.conn_table[client_address]['WIN']:
         if packet.SEQ + packet.LEN == data['ACK']:
+          self.conn_table[client_address]['CGT'].update('NEW_ACK')
+          congestion_flag = True
           self.conn_table[client_address]['WIN'][idx].marked = True
           self.conn_table[client_address]['TIMEOUT'].cancel()
           self.conn_table[client_address]['TIMEOUT'] = Timer(10, self.resend, args=(client_address, my_socket, ))
           self.conn_table[client_address]['TIMEOUT'].start()
         idx += 1
+      if not congestion_flag:
+        self.conn_table[client_address]['CGT'].update('DUP_ACK')
       delete = -1
       # pop contuniously ack
       for packet in self.conn_table[client_address]['WIN']:
@@ -101,6 +110,8 @@ class Server():
       msg = msg.serialize()
       self.conn_table[client_address]['IDX'] += self.size
       self.conn_table[client_address]['SEQ'] += self.size
+      # congestion control
+      time.sleep(1 / self.conn_table[client_address]['CGT'].cwnd)
       my_socket.sendto(msg.encode('utf8'), client_address)
 
     if is_finished:
@@ -131,6 +142,7 @@ class Server():
 
   def close_conn(self, client_address, my_socket):
     if client_address in self.conn_table:
+      self.conn_table[client_address]['CGT'].update('TIMEOUT')
       begin = self.conn_table[client_address]['IDX']
       newSeq = self.conn_table[client_address]['SEQ']
       newAck = self.conn_table[client_address]['ACK']

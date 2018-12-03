@@ -27,7 +27,7 @@ class udpRequestHandler(socketserver.BaseRequestHandler):
       t.start()
     else:
       # server.handler(self.client_address, data, self.request[1])
-      if random.random() > 0.3:
+      if random.random() > 0.4:
         print('throw', data)
         server.throw += 1
       else:  
