@@ -32,8 +32,12 @@ class udpRequestHandler(socketserver.BaseRequestHandler):
         print('throw', data)
         server.throw += 1
       else:  
-        t = threading.Thread(target=server.handler, args=(self.client_address, data, self.request[1]))
-        t.start()
+        if 'FILE' in server.conn_table[self.client_address]:
+          t = threading.Thread(target=server.upload_handler, args=(self.client_address, data, self.request[1]))
+          t.start()
+        else:
+          t = threading.Thread(target=server.handler, args=(self.client_address, data, self.request[1]))
+          t.start()
     
       
  

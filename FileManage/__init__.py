@@ -19,3 +19,15 @@ class FileManage():
       }
     return self.source_table[client_address]['fd'].read(size)
     
+  def save_resource(self, client_address, filename, data):
+    if client_address in self.source_table:
+      self.source_table[client_address]['fd'].write(data)
+    else:
+      fd = None
+      if filename.split('.') == 'txt':
+        fd = open(self.path + filename, 'a')
+      else:
+        fd = open(self.path + filename, 'a')
+      self.source_table[client_address] = {\
+        'fd': fd
+      }

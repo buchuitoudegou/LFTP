@@ -16,18 +16,22 @@ class Server():
     self.begin_seq = 200
     self.size = 1000
     self.throw = 0
+    self.timeout = 2
   
   def establish_conn_1(self, client_ip, client_port, data, my_socket):
     def send_syn():
       if data['CTL'] == 'SYN':
-        self.file_manage.load_resource((client_ip, client_port), data['DATA'], 0)
+        if data['DATA'].split('.')[2] != 'UP_LOAD':
+          self.file_manage.load_resource((client_ip, client_port), data['DATA'], 0)
+        else:
+          self.file_manage.save_resource((client_ip, client_port), \
+          data['DATA'].split('.')[0] + '.' + data['DATA'].split('.')[1], '')
         CTL = 'SYN+ACK'
         SEQ = self.begin_seq
         ACK = data['SEQ'] + 1
         DATA = ' '
         msg = Message.Message(CTL, ACK, SEQ, DATA, 1, 0)
         msg = msg.serialize()
-        #   
         my_socket.sendto(msg.encode('utf8'), (client_ip, client_port))
         self.connecting[(client_ip, client_port)] = data['WIN']
     send_syn()
@@ -37,7 +41,7 @@ class Server():
   def establish_conn_2(self, client_ip, client_port, data, my_socket):
     check_seq = self.begin_seq + 1
     print(data)
-    timer = Timer(2, self.resend, args=((client_ip, client_port), my_socket, ))
+    timer = Timer(self.timer, self.resend, args=((client_ip, client_port), my_socket, ))
     lock = threading.Lock()
     congestion = Congestion.Congestion()
     if data['CTL'] == 'ACK' and data['ACK'] == check_seq:
@@ -51,6 +55,10 @@ class Server():
         'LOCK': lock,\
         'CGT': congestion
       }
+      if data['DATA'].split('.')[2] == 'UP_LOAD':
+        self.conn_table[(client_ip, client_port)]['FILE'] = data['DATA'].split('.')[0] + \
+        '.' + data['DATA'].split('.')[1]
+        self.conn_table[(client_ip, client_port)]['TIMEOUT'].cancel()
       timer.start()
       self.connecting.pop((client_ip, client_port))
     print(self.connecting)
@@ -58,22 +66,28 @@ class Server():
 
   def resend(self, client_address, my_socket):
     print('resend:')
+    self.timeout += 2
     if not client_address in self.conn_table:
       return
+    self.conn_table[client_address]['CGT'].update('TIMEOUT')
     for packet in self.conn_table[client_address]['WIN']:
       msg = packet.serialize()
       print(msg)
       my_socket.sendto(msg.encode('utf8'), client_address)
     print('resend complete')
-    self.conn_table[client_address]['TIMEOUT'] = Timer(2, self.resend, args=(client_address, my_socket, ))
+    self.conn_table[client_address]['TIMEOUT'] = Timer(self.timeout, self.resend, args=(client_address, my_socket, ))
     self.conn_table[client_address]['TIMEOUT'].start()
 
   def handler(self, client_address, data, my_socket):
-    if not client_address in self.conn_table:
+    lock = None
+    try:
+      lock = self.conn_table[client_address]['LOCK']
+    except:
       return
-    lock = self.conn_table[client_address]['LOCK']
     lock.acquire()
     print('lock acquire')
+    if not client_address in self.conn_table:
+      return
     if len(self.conn_table[client_address]['WIN']) != 0:
       idx = 0
       congestion_flag = False
@@ -81,16 +95,17 @@ class Server():
       for packet in self.conn_table[client_address]['WIN']:
         if packet.SEQ + packet.LEN == data['ACK']:
           self.conn_table[client_address]['CGT'].update('NEW_ACK')
+          self.timeout = 2
           congestion_flag = True
           self.conn_table[client_address]['WIN'][idx].marked = True
           self.conn_table[client_address]['TIMEOUT'].cancel()
-          self.conn_table[client_address]['TIMEOUT'] = Timer(2, self.resend, args=(client_address, my_socket, ))
+          self.conn_table[client_address]['TIMEOUT'] = Timer(self.timeout, self.resend, args=(client_address, my_socket, ))
           self.conn_table[client_address]['TIMEOUT'].start()
         idx += 1
       if not congestion_flag:
         self.conn_table[client_address]['CGT'].update('DUP_ACK')
       delete = -1
-      # pop contuniously ack
+      # pop continiously ack
       for packet in self.conn_table[client_address]['WIN']:
         if packet.marked == True:
           delete += 1
@@ -145,7 +160,6 @@ class Server():
 
   def close_conn(self, client_address, my_socket):
     if client_address in self.conn_table:
-      self.conn_table[client_address]['CGT'].update('TIMEOUT')
       begin = self.conn_table[client_address]['IDX']
       newSeq = self.conn_table[client_address]['SEQ']
       newAck = self.conn_table[client_address]['ACK']
@@ -154,4 +168,40 @@ class Server():
       my_socket.sendto(msg.encode('utf8'), client_address)
       self.conn_table[client_address]['TIMEOUT'].cancel()
       self.conn_table.pop(client_address)
+      self.file_manage.source_table[client_address]['fd'].close()
       self.file_manage.source_table.pop(client_address)
+
+  def upload_handler(self, client_address, data, my_socket):
+    lock = None
+    try:
+      lock = self.conn_table[client_address]['LOCK']
+    except:
+      return
+    lock.acquire()
+    print('lock acquire')
+    if not client_address in self.conn_table:
+      return
+    if data['CTL'] == 'FIN':
+      self.close_conn(client_address, my_socket)
+      return
+    for packet in self.conn_table[client_address]['WIN']:
+      if packet.ACK == data['SEQ'] + data['LEN']:
+        print('resend', packet.serialize())
+        my_socket.sendto(packet.serialize().encode('utf8'), client_address)
+    if data['ACK'] == self.conn_table[client_address]['SEQ'] and \
+    data['SEQ'] == self.conn_table[client_address]['ACK']:
+      print(data)
+      filename = self.conn_table[client_address]['FILE']
+      self.file_manage.save_resource(client_address, filename, data['DATA'])
+      self.conn_table[client_address]['ACK'] += data['LEN']
+      msg = Message.Message('ACK', \
+        self.conn_table[client_address]['ACK'],\
+        self.conn_table[client_address]['SEQ'],\
+        '',
+        data['LEN'],
+        0
+      )
+      self.conn_table[client_address]['WIN'].append(msg)
+      msg = msg.serialize()
+      my_socket.sendto(msg.encode('utf8'), client_address)
+    lock.release()

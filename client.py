@@ -6,6 +6,7 @@ import queue
 from Message import restore
 from threading import Timer
 import random
+import Congestion
 
 class Client():
   def __init__(self, port, ip_addr, des_ip, des_port, src_path):
@@ -27,9 +28,12 @@ class Client():
     self.win_size = 30000
     self.last_packet = []
     self.timer = None
+    self.size = 1000
     self.src_path = src_path
+    self.timeout = 2
+    self.congestion = Congestion.Congestion()
 
-  def establish_conn(self):
+  def establish_conn(self, filename):
     """
     description: establish connection with server
     return: None
@@ -45,7 +49,7 @@ class Client():
       CTL = 'SYN'
       ACK = -1
       SEQ = begin_seq
-      DATA = 'data.txt'
+      DATA = filename
       msg = Message.Message(CTL, ACK, SEQ, DATA, 1, self.win_size)
       msg = msg.serialize()
       # print(msg)
@@ -75,7 +79,7 @@ class Client():
       msg = self.msg_queue.get()
       msg = restore(msg)
       if msg['CTL'] == 'SYN+ACK' and msg['ACK'] == begin_seq + 1:
-        ack = Message.Message('ACK', msg['SEQ'] + 1, begin_seq + 1, ' ', 1, 0)
+        ack = Message.Message('ACK', msg['SEQ'] + 1, begin_seq + 1, filename, 1, 0)
         ack = ack.serialize()
         self.seq = begin_seq + 1
         self.ack = msg['SEQ'] + 1
@@ -144,6 +148,7 @@ class Client():
     my_socket.close()
       
   def resend(self, my_socket):
+    self.timeout += 2
     for i in range(len(self.last_packet) - 1, -1, -1):
       packet = self.last_packet[i]
       print('resend', packet.serialize())
@@ -152,13 +157,103 @@ class Client():
       except:
         pass
     # self.last_packet = []
-    self.timer = Timer(2, self.resend, args=(my_socket, ))
+    self.timer = Timer(self.timeout, self.resend, args=(my_socket, ))
     self.timer.start()
+
+  def send_file(self, filename):
+    my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    my_socket.bind((self.ip_addr, self.port))
+    fd = open(filename, 'r')
+    fdata = fd.read(self.size)
+    msg = Message.Message('ACK', self.ack, self.seq, fdata, self.size, 0)
+    self.last_packet.append(msg)
+    my_socket.sendto(msg.serialize().encode('utf8'), (self.des_ip, self.des_port))
+    self.timer = Timer(self.timeout, self.resend, args=(my_socket, ))
+    self.timer.start()
+    while True:
+      data = my_socket.recv(self.port).decode('utf8')
+      if random.random() > 0.9:
+        continue
+      data = restore(data)
+      if len(self.last_packet) != 0:
+        idx = 0
+        congestion_flag = False
+        # marked not pop
+        for packet in self.last_packet:
+          if packet.SEQ + packet.LEN == data['ACK']:
+            self.congestion.update('NEW_ACK')
+            self.timeout = 2
+            congestion_flag = True
+            self.last_packet[idx].marked = True
+            self.timer.cancel()
+            self.timer = Timer(self.timeout, self.resend, args=(my_socket, ))
+            self.timer.start()
+          idx += 1
+        if not congestion_flag:
+          self.congestion.update('DUP_ACK')
+        delete = -1
+        # pop continiously ack
+        for packet in self.last_packet:
+          if packet.marked == True:
+            delete += 1
+            self.last_packet.pop(delete)
+          else:
+            break
+      print(data)
+      is_finished = False
+      while self.win_empty():
+        send_data = fd.read(self.size)
+        if send_data == '':
+          is_finished = True
+          break
+        newSeq = self.seq
+        newAck = self.ack
+        msg = Message.Message('ACK', newAck, newSeq, send_data, self.size, 0)
+        self.last_packet.append(msg)
+        print(msg.serialize())
+        msg = msg.serialize()
+        self.seq += self.size
+        # congestion control
+        time.sleep(1 / self.congestion.cwnd)
+        my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+      
+      if is_finished:
+        flag = True
+        for packet in self.last_packet:
+          if packet.marked == False:
+            flag = False
+            break
+        if flag:
+          self.close_conn(my_socket)
+          print('finished')
+          fd.close()
+          break
+    my_socket.close()
+
+  def win_empty(self):
+    _sum = 0
+    for packet in self.last_packet:
+      _sum += packet.LEN
+    if _sum < self.win_size:
+      return True
+    else:
+      return False
+
+
+  def close_conn(self, my_socket):
+    newSeq = self.seq
+    newAck = self.ack
+    msg = Message.Message('FIN', newAck, newSeq, '', 0, 0)
+    msg = msg.serialize()
+    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+    self.timer.cancel()
+
 
 def multi_thread(port):
   client = Client(port, '127.0.0.1', '127.0.0.1', 8081, 'rev.txt')
-  client.establish_conn()
-  client.send_request()  
+  client.establish_conn('rev.txt.UP_LOAD')
+  #client.send_request()
+  client.send_file('rev.txt')  
 
 if __name__ == '__main__':
   t1 = threading.Thread(target=multi_thread, args=(7777, ))
