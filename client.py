@@ -42,7 +42,7 @@ class Client():
       CTL = 'SYN'
       ACK = -1
       SEQ = begin_seq
-      DATA = 'filename'
+      DATA = 'data.txt'
       msg = Message.Message(CTL, ACK, SEQ, DATA, 1, self.win)
       msg = msg.serialize()
       my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))

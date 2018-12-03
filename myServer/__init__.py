@@ -1,5 +1,7 @@
 import Message
 from threading import Timer
+import FileManage
+import threading
 
 class Server():
   def __init__(self, ip, port):
@@ -8,15 +10,15 @@ class Server():
     self.conn_table = dict()
     self.connecting = dict()
     self.closing = dict()
+    self.file_manage = FileManage.FileManage()
     self.begin_seq = 200
-    self.send_data = 'aaaabbbbccccddddeeee'
     self.size = 4
     self.throw = 0
   
   def establish_conn_1(self, client_ip, client_port, data, my_socket):
-    # print(data)
     def send_syn():
       if data['CTL'] == 'SYN':
+        self.file_manage.load_resource((client_ip, client_port), data['DATA'])
         CTL = 'SYN+ACK'
         SEQ = self.begin_seq
         ACK = data['SEQ'] + 1
@@ -33,6 +35,7 @@ class Server():
     check_seq = self.begin_seq + 1
     print(data)
     timer = Timer(10, self.resend, args=((client_ip, client_port), my_socket, ))
+    lock = threading.Lock()
     if data['CTL'] == 'ACK' and data['ACK'] == check_seq:
       self.conn_table[(client_ip, client_port)] = {\
         'SEQ': data['ACK'], \
@@ -40,7 +43,8 @@ class Server():
         'WIN_SIZE': self.connecting[(client_ip, client_port)], \
         'IDX': 0,\
         'WIN': [],\
-        'TIMEOUT': timer\
+        'TIMEOUT': timer,\
+        'LOCK': lock\
       }
       timer.start()
       self.connecting.pop((client_ip, client_port))
@@ -60,6 +64,9 @@ class Server():
   def handler(self, client_address, data, my_socket):
     if not client_address in self.conn_table:
       return
+    lock = self.conn_table[client_address]['LOCK']
+    lock.acquire()
+    print('lock acquire')
     if len(self.conn_table[client_address]['WIN']) != 0:
       idx = 0
       # marked not pop
@@ -77,15 +84,18 @@ class Server():
           self.conn_table[client_address]['WIN'].pop(delete)
         else:
           break
-    print(data) 
+    print(data)
+     
     while self.win_empty(client_address):
-      if self.conn_table[client_address]['IDX'] == len(self.send_data):
+      if self.conn_table[client_address]['IDX'] == \
+        len(self.file_manage.source_table[client_address]):
         break
+      send_data = self.file_manage.source_table[client_address]
       begin = self.conn_table[client_address]['IDX']
       newSeq = self.conn_table[client_address]['SEQ']
       newAck = self.conn_table[client_address]['ACK']
       msg = Message.Message('ACK', newAck, newSeq, \
-      self.send_data[begin:begin+self.size], self.size, 0)
+      send_data[begin:begin+self.size], self.size, 0)
       self.conn_table[client_address]['WIN'].append(msg)
       print(msg.serialize())
       msg = msg.serialize()
@@ -94,7 +104,8 @@ class Server():
       self.conn_table[client_address]['SEQ'] += self.size
       my_socket.sendto(msg.encode('utf8'), client_address)
 
-    if self.conn_table[client_address]['IDX'] == len(self.send_data):
+    if self.conn_table[client_address]['IDX'] \
+      == len(self.file_manage.source_table[client_address]):
       flag = True
       for packet in self.conn_table[client_address]['WIN']:
         if packet.marked == False:
@@ -106,6 +117,7 @@ class Server():
       print(self.conn_table[client_address])
     else:
       print(self.conn_table)
+    lock.release()
 
   def win_empty(self, client_address):
     win = self.conn_table[client_address]['WIN']
