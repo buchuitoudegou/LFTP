@@ -7,6 +7,7 @@ from Message import restore
 from threading import Timer
 import random
 import Congestion
+import os
 
 class Client():
   def __init__(self, port, ip_addr, des_ip, des_port, src_path):
@@ -25,12 +26,12 @@ class Client():
     self.seq = -1
     self.ack = -1
     self.begin = True
-    self.win_size = 30000
+    self.win_size = 50000
     self.last_packet = []
     self.timer = None
     self.size = 1000
     self.src_path = src_path
-    self.timeout = 2
+    self.timeout = 0.1
     self.congestion = Congestion.Congestion()
 
   def establish_conn(self, filename):
@@ -148,7 +149,9 @@ class Client():
     my_socket.close()
       
   def resend(self, my_socket):
-    self.timeout += 2
+    #self.timer.cancel()
+    self.timeout += 0.2
+    self.congestion.update('TIMEOUT')
     for i in range(len(self.last_packet) - 1, -1, -1):
       packet = self.last_packet[i]
       print('resend', packet.serialize())
@@ -166,6 +169,8 @@ class Client():
     fd = open(filename, 'r')
     fdata = fd.read(self.size)
     msg = Message.Message('ACK', self.ack, self.seq, fdata, self.size, 0)
+    self.seq += self.size
+    print(msg.serialize())
     self.last_packet.append(msg)
     my_socket.sendto(msg.serialize().encode('utf8'), (self.des_ip, self.des_port))
     self.timer = Timer(self.timeout, self.resend, args=(my_socket, ))
@@ -182,7 +187,7 @@ class Client():
         for packet in self.last_packet:
           if packet.SEQ + packet.LEN == data['ACK']:
             self.congestion.update('NEW_ACK')
-            self.timeout = 2
+            self.timeout = 0.1
             congestion_flag = True
             self.last_packet[idx].marked = True
             self.timer.cancel()
@@ -201,7 +206,8 @@ class Client():
             break
       print(data)
       is_finished = False
-      while self.win_empty():
+      c_send = 0
+      while self.win_empty() and c_send < self.congestion.cwnd:
         send_data = fd.read(self.size)
         if send_data == '':
           is_finished = True
@@ -214,9 +220,10 @@ class Client():
         msg = msg.serialize()
         self.seq += self.size
         # congestion control
-        time.sleep(1 / self.congestion.cwnd)
+        # time.sleep(0.01 / self.congestion.cwnd)
         my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-      
+        c_send += 1
+
       if is_finished:
         flag = True
         for packet in self.last_packet:
@@ -225,9 +232,9 @@ class Client():
             break
         if flag:
           self.close_conn(my_socket)
-          print('finished')
+          print('finished', self.timeout)
           fd.close()
-          break
+          break         
     my_socket.close()
 
   def win_empty(self):
@@ -246,14 +253,18 @@ class Client():
     msg = Message.Message('FIN', newAck, newSeq, '', 0, 0)
     msg = msg.serialize()
     my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
     self.timer.cancel()
-
 
 def multi_thread(port):
   client = Client(port, '127.0.0.1', '127.0.0.1', 8081, 'rev.txt')
   client.establish_conn('rev.txt.UP_LOAD')
   #client.send_request()
   client.send_file('rev.txt')  
+  os._exit(0)
 
 if __name__ == '__main__':
   t1 = threading.Thread(target=multi_thread, args=(7777, ))

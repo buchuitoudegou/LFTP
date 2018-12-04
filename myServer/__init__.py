@@ -16,12 +16,12 @@ class Server():
     self.begin_seq = 200
     self.size = 1000
     self.throw = 0
-    self.timeout = 2
+    self.timeout = 0.1
   
   def establish_conn_1(self, client_ip, client_port, data, my_socket):
     def send_syn():
       if data['CTL'] == 'SYN':
-        if data['DATA'].split('.')[2] != 'UP_LOAD':
+        if data['DATA'].split('.')[-1] != 'UP_LOAD':
           self.file_manage.load_resource((client_ip, client_port), data['DATA'], 0)
         else:
           self.file_manage.save_resource((client_ip, client_port), \
@@ -41,7 +41,7 @@ class Server():
   def establish_conn_2(self, client_ip, client_port, data, my_socket):
     check_seq = self.begin_seq + 1
     print(data)
-    timer = Timer(self.timer, self.resend, args=((client_ip, client_port), my_socket, ))
+    timer = Timer(self.timeout, self.resend, args=((client_ip, client_port), my_socket, ))
     lock = threading.Lock()
     congestion = Congestion.Congestion()
     if data['CTL'] == 'ACK' and data['ACK'] == check_seq:
@@ -55,7 +55,7 @@ class Server():
         'LOCK': lock,\
         'CGT': congestion
       }
-      if data['DATA'].split('.')[2] == 'UP_LOAD':
+      if data['DATA'].split('.')[-1] == 'UP_LOAD':
         self.conn_table[(client_ip, client_port)]['FILE'] = data['DATA'].split('.')[0] + \
         '.' + data['DATA'].split('.')[1]
         self.conn_table[(client_ip, client_port)]['TIMEOUT'].cancel()
@@ -66,7 +66,7 @@ class Server():
 
   def resend(self, client_address, my_socket):
     print('resend:')
-    self.timeout += 2
+    self.timeout += 0.2
     if not client_address in self.conn_table:
       return
     self.conn_table[client_address]['CGT'].update('TIMEOUT')
@@ -95,7 +95,7 @@ class Server():
       for packet in self.conn_table[client_address]['WIN']:
         if packet.SEQ + packet.LEN == data['ACK']:
           self.conn_table[client_address]['CGT'].update('NEW_ACK')
-          self.timeout = 2
+          self.timeout = 0.1
           congestion_flag = True
           self.conn_table[client_address]['WIN'][idx].marked = True
           self.conn_table[client_address]['TIMEOUT'].cancel()
@@ -114,7 +114,8 @@ class Server():
           break
     print(data)
     is_finished = False
-    while self.win_empty(client_address):
+    c_send = 0
+    while self.win_empty(client_address) and c_send < self.conn_table[client_address]['CGT'].cwnd:
       send_data = self.file_manage.load_resource(client_address, '', self.size)
       if send_data == '':
         is_finished = True
@@ -129,8 +130,9 @@ class Server():
       self.conn_table[client_address]['IDX'] += self.size
       self.conn_table[client_address]['SEQ'] += self.size
       # congestion control
-      time.sleep(1 / self.conn_table[client_address]['CGT'].cwnd)
+      # time.sleep(0.01 / self.conn_table[client_address]['CGT'].cwnd)
       my_socket.sendto(msg.encode('utf8'), client_address)
+      c_send += 1
 
     if is_finished:
       flag = True
@@ -167,6 +169,10 @@ class Server():
       msg = msg.serialize()
       my_socket.sendto(msg.encode('utf8'), client_address)
       self.conn_table[client_address]['TIMEOUT'].cancel()
+      try:
+        self.conn_table[client_address]['LOCK'].release()
+      except:
+        pass
       self.conn_table.pop(client_address)
       self.file_manage.source_table[client_address]['fd'].close()
       self.file_manage.source_table.pop(client_address)
