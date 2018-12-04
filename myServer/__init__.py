@@ -21,6 +21,7 @@ class Server():
   def establish_conn_1(self, client_ip, client_port, data, my_socket):
     def send_syn():
       if data['CTL'] == 'SYN':
+        data['DATA'] = data['DATA'].decode('utf8')
         if data['DATA'].split('.')[-1] != 'UP_LOAD':
           self.file_manage.load_resource((client_ip, client_port), data['DATA'], 0)
         else:
@@ -29,10 +30,10 @@ class Server():
         CTL = 'SYN+ACK'
         SEQ = self.begin_seq
         ACK = data['SEQ'] + 1
-        DATA = ' '
+        DATA = b''
         msg = Message.Message(CTL, ACK, SEQ, DATA, 1, 0)
         msg = msg.serialize()
-        my_socket.sendto(msg.encode('utf8'), (client_ip, client_port))
+        my_socket.sendto(msg, (client_ip, client_port))
         self.connecting[(client_ip, client_port)] = data['WIN']
     send_syn()
     print(self.connecting)
@@ -41,6 +42,7 @@ class Server():
   def establish_conn_2(self, client_ip, client_port, data, my_socket):
     check_seq = self.begin_seq + 1
     print(data)
+    data['DATA'] = data['DATA'].decode('utf8')
     timer = Timer(self.timeout, self.resend, args=((client_ip, client_port), my_socket, ))
     lock = threading.Lock()
     congestion = Congestion.Congestion()
@@ -73,7 +75,7 @@ class Server():
     for packet in self.conn_table[client_address]['WIN']:
       msg = packet.serialize()
       print(msg)
-      my_socket.sendto(msg.encode('utf8'), client_address)
+      my_socket.sendto(msg, client_address)
     print('resend complete')
     self.conn_table[client_address]['TIMEOUT'] = Timer(self.timeout, self.resend, args=(client_address, my_socket, ))
     self.conn_table[client_address]['TIMEOUT'].start()
@@ -117,7 +119,7 @@ class Server():
     c_send = 0
     while self.win_empty(client_address) and c_send < self.conn_table[client_address]['CGT'].cwnd:
       send_data = self.file_manage.load_resource(client_address, '', self.size)
-      if send_data == '':
+      if send_data == '' or send_data == b'':
         is_finished = True
         break
       begin = self.conn_table[client_address]['IDX']
@@ -131,7 +133,7 @@ class Server():
       self.conn_table[client_address]['SEQ'] += self.size
       # congestion control
       # time.sleep(0.01 / self.conn_table[client_address]['CGT'].cwnd)
-      my_socket.sendto(msg.encode('utf8'), client_address)
+      my_socket.sendto(msg, client_address)
       c_send += 1
 
     if is_finished:
@@ -165,9 +167,9 @@ class Server():
       begin = self.conn_table[client_address]['IDX']
       newSeq = self.conn_table[client_address]['SEQ']
       newAck = self.conn_table[client_address]['ACK']
-      msg = Message.Message('FIN', newAck, newSeq, '', 0, 0)
+      msg = Message.Message('FIN', newAck, newSeq, b'', 0, 0)
       msg = msg.serialize()
-      my_socket.sendto(msg.encode('utf8'), client_address)
+      my_socket.sendto(msg, client_address)
       self.conn_table[client_address]['TIMEOUT'].cancel()
       try:
         self.conn_table[client_address]['LOCK'].release()
@@ -193,7 +195,7 @@ class Server():
     for packet in self.conn_table[client_address]['WIN']:
       if packet.ACK == data['SEQ'] + data['LEN']:
         print('resend', packet.serialize())
-        my_socket.sendto(packet.serialize().encode('utf8'), client_address)
+        my_socket.sendto(packet.serialize(), client_address)
     if data['ACK'] == self.conn_table[client_address]['SEQ'] and \
     data['SEQ'] == self.conn_table[client_address]['ACK']:
       print(data)
@@ -203,11 +205,11 @@ class Server():
       msg = Message.Message('ACK', \
         self.conn_table[client_address]['ACK'],\
         self.conn_table[client_address]['SEQ'],\
-        '',
+        b'',
         data['LEN'],
         0
       )
       self.conn_table[client_address]['WIN'].append(msg)
       msg = msg.serialize()
-      my_socket.sendto(msg.encode('utf8'), client_address)
+      my_socket.sendto(msg, client_address)
     lock.release()

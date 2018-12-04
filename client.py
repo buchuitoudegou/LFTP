@@ -50,12 +50,12 @@ class Client():
       CTL = 'SYN'
       ACK = -1
       SEQ = begin_seq
-      DATA = filename
+      DATA = filename.encode('utf8')
       msg = Message.Message(CTL, ACK, SEQ, DATA, 1, self.win_size)
       msg = msg.serialize()
       # print(msg)
       # print(restore(msg))
-      my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+      my_socket.sendto(msg, (self.des_ip, self.des_port))
       my_socket.close()
 
     def wait_for_msg():
@@ -66,7 +66,6 @@ class Client():
       my_socket.bind((self.ip_addr, self.port))
       #print(self.port)
       recv = my_socket.recv(self.port)
-      recv = recv.decode('utf8')
       print(recv)
       self.msg_queue.put(recv)
       my_socket.close()
@@ -80,11 +79,11 @@ class Client():
       msg = self.msg_queue.get()
       msg = restore(msg)
       if msg['CTL'] == 'SYN+ACK' and msg['ACK'] == begin_seq + 1:
-        ack = Message.Message('ACK', msg['SEQ'] + 1, begin_seq + 1, filename, 1, 0)
+        ack = Message.Message('ACK', msg['SEQ'] + 1, begin_seq + 1, filename.encode('utf8'), 1, 0)
         ack = ack.serialize()
         self.seq = begin_seq + 1
         self.ack = msg['SEQ'] + 1
-        my_socket.sendto(ack.encode('utf8'), (self.des_ip, self.des_port))
+        my_socket.sendto(ack, (self.des_ip, self.des_port))
         my_socket.close()
         print('finish connecting')
 
@@ -100,19 +99,19 @@ class Client():
     # analog packet loss
     self.timer = None
     # first request
-    msg = Message.Message('ACK', self.ack, self.seq, '', 0, 0)
+    msg = Message.Message('ACK', self.ack, self.seq, b'', 0, 0)
     self.last_packet.append(msg)
     my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     my_socket.bind((self.ip_addr, self.port))
     msg = msg.serialize()
-    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+    my_socket.sendto(msg, (self.des_ip, self.des_port))
     self.timer = Timer(2, self.resend, args=(my_socket, ))
     self.timer.start()
-    fd = open(self.src_path, 'a')
+    fd = open(self.src_path, 'ab')
     # recieve packet from server
     while True:
       # ananlize packet
-      data = my_socket.recv(self.port).decode('utf8')
+      data = my_socket.recv(self.port)
       print(data)
       data = restore(data)
       idx = 0
@@ -129,7 +128,7 @@ class Client():
       for packet in self.last_packet:
         if packet.ACK == data['SEQ'] + data['LEN']:
           print('resend', packet)
-          my_socket.sendto(packet.serialize().encode('utf8'), (self.des_ip, self.des_port))
+          my_socket.sendto(packet.serialize(), (self.des_ip, self.des_port))
       # whether correct
       if data['ACK'] == self.seq and data['SEQ'] == self.ack:
         print(data)
@@ -137,10 +136,10 @@ class Client():
         fd.write(data['DATA'])
         self.timer.cancel()
         self.ack = self.ack + data['LEN']
-        msg = Message.Message('ACK', self.ack, self.seq, '', data['LEN'], 0)
+        msg = Message.Message('ACK', self.ack, self.seq, b'', data['LEN'], 0)
         self.last_packet.append(msg)
         msg = msg.serialize()
-        my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+        my_socket.sendto(msg, (self.des_ip, self.des_port))
         #self.timer = Timer(2, self.resend, args=(my_socket, ))
         #self.timer.start()
       else:
@@ -156,7 +155,7 @@ class Client():
       packet = self.last_packet[i]
       print('resend', packet.serialize())
       try:
-        my_socket.sendto(packet.serialize().encode('utf8'), (self.des_ip, self.des_port))
+        my_socket.sendto(packet.serialize(), (self.des_ip, self.des_port))
       except:
         pass
     # self.last_packet = []
@@ -166,17 +165,17 @@ class Client():
   def send_file(self, filename):
     my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     my_socket.bind((self.ip_addr, self.port))
-    fd = open(filename, 'r')
+    fd = open(filename, 'rb')
     fdata = fd.read(self.size)
     msg = Message.Message('ACK', self.ack, self.seq, fdata, self.size, 0)
     self.seq += self.size
     print(msg.serialize())
     self.last_packet.append(msg)
-    my_socket.sendto(msg.serialize().encode('utf8'), (self.des_ip, self.des_port))
+    my_socket.sendto(msg.serialize(), (self.des_ip, self.des_port))
     self.timer = Timer(self.timeout, self.resend, args=(my_socket, ))
     self.timer.start()
     while True:
-      data = my_socket.recv(self.port).decode('utf8')
+      data = my_socket.recv(self.port)
       if random.random() > 0.9:
         continue
       data = restore(data)
@@ -221,7 +220,7 @@ class Client():
         self.seq += self.size
         # congestion control
         # time.sleep(0.01 / self.congestion.cwnd)
-        my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+        my_socket.sendto(msg, (self.des_ip, self.des_port))
         c_send += 1
 
       if is_finished:
@@ -250,13 +249,13 @@ class Client():
   def close_conn(self, my_socket):
     newSeq = self.seq
     newAck = self.ack
-    msg = Message.Message('FIN', newAck, newSeq, '', 0, 0)
+    msg = Message.Message('FIN', newAck, newSeq, b'', 0, 0)
     msg = msg.serialize()
-    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
-    my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
+    my_socket.sendto(msg, (self.des_ip, self.des_port))
+    my_socket.sendto(msg, (self.des_ip, self.des_port))
+    my_socket.sendto(msg, (self.des_ip, self.des_port))
+    my_socket.sendto(msg, (self.des_ip, self.des_port))
+    my_socket.sendto(msg, (self.des_ip, self.des_port))
     self.timer.cancel()
 
 def multi_thread(port, filename, mode):

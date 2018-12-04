@@ -13,7 +13,7 @@ class udpRequestHandler(socketserver.BaseRequestHandler):
     super().__init__(request, client_address, server)
     
   def handle(self):
-    data = self.request[0].strip().decode('utf8')
+    data = self.request[0].strip()
     data = restore(data)
     # print(data)
     client_ip = self.client_address[0]

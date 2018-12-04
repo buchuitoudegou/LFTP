@@ -9,23 +9,24 @@ class Message():
     self.marked = False
 
   def serialize(self):
-    string = str(self.CTL) + '@@@@' \
-      + str(self.ACK) + '@@@@' \
-      + str(self.SEQ) + '@@@@' \
-      + str(self.DATA) + '@@@@' \
-      + str(self.LEN) + '@@@@' \
-      + str(self.WIN) + '@@@@'\
-      + str(self.marked)
+    string = string = str(self.CTL) + '@@@@' \
+        + str(self.ACK) + '@@@@' \
+        + str(self.SEQ) + '@@@@' \
+        + str(self.LEN) + '@@@@' \
+        + str(self.WIN) + '@@@@' \
+        + str(self.marked) + '@@@@'
+    string = string.encode('utf8')
+    string += self.DATA
     return string
 
 def restore(string):
-  arr = string.split('@@@@')
+  arr = string.split(b'@@@@')
   return { \
-    'CTL': str(arr[0]), \
-    'ACK': int(arr[1]), \
-    'SEQ': int(arr[2]),\
-    'DATA': str(arr[3]),\
-    'LEN': int(arr[4]),\
-    'WIN': int(arr[5]),\
-    'marked': False if arr[6] == 'False' else True
+    'CTL': arr[0].decode('utf8'), \
+    'ACK': int(arr[1].decode('utf8')), \
+    'SEQ': int(arr[2].decode('utf8')),\
+    'LEN': int(arr[3].decode('utf8')),\
+    'WIN': int(arr[4].decode('utf8')),\
+    'marked': False if arr[5].decode('utf8') == 'False' else True,\
+    'DATA': arr[6]
   }
