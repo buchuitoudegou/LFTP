@@ -14,10 +14,10 @@ class Server():
     self.closing = dict()
     self.file_manage = FileManage.FileManage()
     self.begin_seq = 200
-    self.size = 1000
+    self.size = 2048
     self.throw = 0
     self.timeout = 0.1
-  
+    
   def establish_conn_1(self, client_ip, client_port, data, my_socket):
     def send_syn():
       if data['CTL'] == 'SYN':
@@ -179,14 +179,14 @@ class Server():
       self.file_manage.source_table[client_address]['fd'].close()
       self.file_manage.source_table.pop(client_address)
 
-  def upload_handler(self, client_address, data, my_socket):
+  def upload_handler(self, client_address, data, my_socket, temp):
     lock = None
     try:
       lock = self.conn_table[client_address]['LOCK']
     except:
       return
     lock.acquire()
-    print('lock acquire')
+    #print('lock acquire')
     if not client_address in self.conn_table:
       return
     if data['CTL'] == 'FIN':
@@ -194,7 +194,7 @@ class Server():
       return
     for packet in self.conn_table[client_address]['WIN']:
       if packet.ACK == data['SEQ'] + data['LEN']:
-        print('resend', packet.serialize())
+        #print('resend', packet.serialize())
         my_socket.sendto(packet.serialize(), client_address)
     if data['ACK'] == self.conn_table[client_address]['SEQ'] and \
     data['SEQ'] == self.conn_table[client_address]['ACK']:

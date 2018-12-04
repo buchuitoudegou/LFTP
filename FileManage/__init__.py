@@ -3,6 +3,7 @@ class FileManage():
   def __init__(self):
     self.source_table = {}
     self.path = './FileManage/'
+    self.test = open('./777.jpg', 'ab')
 
   def load_resource(self, client_address, filename, size):
     if client_address in self.source_table:
@@ -23,6 +24,7 @@ class FileManage():
   def save_resource(self, client_address, filename, data):
     if client_address in self.source_table:
       self.source_table[client_address]['fd'].write(data)
+      self.test.write(data)
     else:
       fd = None
       # if filename.split('.') == 'txt':
