@@ -259,16 +259,23 @@ class Client():
     my_socket.sendto(msg.encode('utf8'), (self.des_ip, self.des_port))
     self.timer.cancel()
 
-def multi_thread(port):
-  client = Client(port, '127.0.0.1', '127.0.0.1', 8081, 'rev.txt')
-  client.establish_conn('rev.txt.UP_LOAD')
-  #client.send_request()
-  client.send_file('rev.txt')  
+def multi_thread(port, filename, mode):
+  client = Client(port, '127.0.0.1', '127.0.0.1', 8081, filename)
+  if mode == 0:
+    client.establish_conn(filename + '.UP_LOAD')
+    client.send_file(filename)
+  else:
+    client.establish_conn(filename)
+    client.send_request()
+  # # client = Client(port, '127.0.0.1', '127.0.0.1', 8081, 'rev.txt')
+  # # client.establish_conn('rev.txt.UP_LOAD')
+  # #client.send_request()
+  # client.send_file('rev.txt')  
   os._exit(0)
 
 if __name__ == '__main__':
-  t1 = threading.Thread(target=multi_thread, args=(7777, ))
-  #t2 = threading.Thread(target=multi_thread, args=(7700, ))
+  print('LFTP Client is running...')
+  mode = int(input('upload(0) or download?(1): '))
+  filename = str(input('please input your filename: '))
+  t1 = threading.Thread(target=multi_thread, args=(7777, filename, mode))
   t1.start()
-  #time.sleep(2)
-  #t2.start()
