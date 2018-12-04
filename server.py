@@ -35,7 +35,10 @@ class udpRequestHandler(socketserver.BaseRequestHandler):
       #   print('throw', data)
       #   server.throw += 1
       # else:  
-      if 'FILE' in server.conn_table[self.client_address]:
+      if random.random() > 0.7:
+        print('throw', data)
+        return
+      elif 'FILE' in server.conn_table[self.client_address]:
         t = threading.Thread(target=server.upload_handler, args=(self.client_address, data, self.request[1], temp))
         t.start()
       else:

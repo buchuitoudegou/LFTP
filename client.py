@@ -155,7 +155,7 @@ class Client():
       self.congestion.update('TIMEOUT')
       for i in range(len(self.last_packet)):
         packet = self.last_packet[i]
-        #print('resend', packet.serialize())
+        print('resend', packet.serialize())
         try:
           my_socket.sendto(packet.serialize(), (self.des_ip, self.des_port))
         except:
