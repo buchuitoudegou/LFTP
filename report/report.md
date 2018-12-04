@@ -295,4 +295,27 @@ class Congestion():
 ## 实验结果分析
 为了方便分析，这里不对大文件的传输进行分析（log会将发送的分组全部打印出来）
 
-### 客户端请求资源
+### 客户端请求资源(一个客户端)
+![preview](https://raw.githubusercontent.com/buchuitoudegou/LFTP/master/report/client-1.png)
+
+![preview](https://raw.githubusercontent.com/buchuitoudegou/LFTP/master/report/server-1.png)
+
+![preview](https://raw.githubusercontent.com/buchuitoudegou/LFTP/master/report/result-1.png)
+
+客户端请求了一个small.txt资源，丢包是随机的，丢包会触发重传
+
+### 客户端发送资源
+![preview](https://raw.githubusercontent.com/buchuitoudegou/LFTP/master/report/client-2.png)
+
+![preview](https://raw.githubusercontent.com/buchuitoudegou/LFTP/master/report/server-2.png)
+
+![preview](https://raw.githubusercontent.com/buchuitoudegou/LFTP/master/report/result-2.png)
+
+客户端上传一个small.txt资源
+
+### 两个客户端请求资源（一个发送一个上传）
+![preview](https://raw.githubusercontent.com/buchuitoudegou/LFTP/master/report/client-3.png)
+
+![preview](https://raw.githubusercontent.com/buchuitoudegou/LFTP/master/report/server-3.png)
+
+其中客户端上传small777.txt，另一个下载small.txt
