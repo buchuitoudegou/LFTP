@@ -208,7 +208,7 @@ class Client():
       c_send = 0
       while self.win_empty() and c_send < self.congestion.cwnd:
         send_data = fd.read(self.size)
-        if send_data == '':
+        if send_data == b'':
           is_finished = True
           break
         newSeq = self.seq
